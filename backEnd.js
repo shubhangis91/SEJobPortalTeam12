@@ -22,7 +22,7 @@ var connection = mysql.createConnection({
 let transporter = nodemailer.createTransport({
     service: process.env.MAIL_SERV,
     auth: {
-        user: process.env.USER,
+        user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS
     }
 });
