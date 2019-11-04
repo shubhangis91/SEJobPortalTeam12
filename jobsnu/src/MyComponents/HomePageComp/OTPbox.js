@@ -58,7 +58,7 @@ class OTPbox extends React.Component {
         return(
             <Modal show={this.props.fade}>
                 <Modal.Header closeButton>
-                    Please enter the 6 digit OTP emailed to you below {this.props.otp}
+                    Please enter the 6 digit OTP emailed to you below
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
