@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect} from 'react';
 import { makeStyles } from '@material-ui/core/styles';
 import ExpansionPanel from '@material-ui/core/ExpansionPanel';
 import ExpansionPanelDetails from '@material-ui/core/ExpansionPanelDetails';
@@ -20,6 +20,11 @@ import FormControl from '@material-ui/core/FormControl';
 import FormLabel from '@material-ui/core/FormLabel';
 import Button from "react-bootstrap/Button"
 import PersonalData from "./PersonalData"
+import { useCookies } from 'react-cookie';
+import NewEducationPostComponent from './NewEducationPostComponent';
+import EducationPostComponent from './EducationPostComponent';
+import NewWorkPostComponent from './NewWorkPostComponent';
+import WorkPostComponent from './WorkPostComponent';
 
 const useStyles = makeStyles(theme => ({
   root: {
@@ -59,10 +64,11 @@ const useStyles = makeStyles(theme => ({
 export default function ProfileDetails(props) {
   const classes = useStyles();
   const [expanded, setExpanded] = React.useState(false);
+  const [cookies, setCookie] = useCookies(['userEmail']);
+
 
   const handleExpand = panel => (event, isExpanded) => {
     setExpanded(isExpanded ? panel : false);
-    console.log(user.firstName)
   };
 
   const handleSubmit = (event) => {
@@ -74,19 +80,77 @@ export default function ProfileDetails(props) {
             console.log(res) 
             console.log(res.data)
         })
+        loadValues()
+
 }
+
 const [user, setValues] = React.useState({
+  email: cookies['userEmail'],
   firstName: '',
   lastName: '',
   dob: '',
   secondaryContact: '',
   primaryContact: '',
   gender:'',
+  userId:1,
 });
-const handleChange = name => event => {
-  setValues({ ...user, [name]: event.target.value });
+const [education,setEducation]=useState([])
+const [workExp,setWork]=useState([])
+
+
+
+
+const handleChange = (object,name) => event => {
+  setValues({ ...[object], [name]: event.target.value });
   console.log(user)
 };
+const loadValues = () => {
+  //console.log(user)
+  var strUser = "/userDetails";
+  var strEdu = "/showEducation";
+  var strWork = "showWorkExperience";
+  var str2 = "?userId="
+  var str3 = user.userId;
+  var getUserdetails = strUser.concat(str2, str3);
+  var getEducation = strEdu.concat(str2,str3);
+  var getWork = strWork.concat(str2,str3);
+  axios
+        .get(getUserdetails)
+        .then(res => {
+          console.log(res.data)
+          setValues(res.data);
+          //console.log(user)
+        })
+  // axios
+  //       .get(getEducation)
+  //       .then(res => {
+  //         console.log(res.data.workExperiences)
+  //         setEducation(res.data.workExperiences)
+  //         console.log(education)
+  //       }) 
+  axios
+        .get(getWork)
+        .then(res => {
+          console.log(res.data.workExperiences)
+          setWork(res.data.workExperiences)
+          console.log(workExp)
+        })
+        
+ };
+useEffect(() => {loadValues()},[])
+const [newEducationComponent, setNewEducationComponent] = React.useState(false)
+
+const handleAddEducation = (event) => {
+  setNewEducationComponent(!newEducationComponent)
+};
+
+const [newWorkComponent, setNewWorkComponent] = React.useState(false)
+
+const handleAddWork = (event) => {
+  setNewWorkComponent(!newWorkComponent)
+};
+
+
   return (
     <div className={classes.root}>
       <ExpansionPanel expanded={expanded === 'panel1'} onChange={handleExpand('panel1')}>
@@ -109,29 +173,18 @@ const handleChange = name => event => {
               label="First Name"
               className={classes.textField}
               value={user.firstName}
-              onChange={handleChange('firstName')}
+              onChange={handleChange('user','firstName')}
               margin="normal"
             />
             <TextField
               id="outlined-name"
               label="Last Name"
               className={classes.textField}
-              value={user.lasttName}
-              onChange={handleChange('lastName')}
+              value={user.lastName}
+              onChange={handleChange('user','lastName')}
               margin="normal"
             />
             </Grid>
-            <TextField
-              id="date"
-              label="dob"
-              type="date"
-              defaultValue="2000-01-01"
-              className={classes.textField}
-              onChange={handleChange('dob')}
-              InputLabelProps={{
-                shrink: true,
-              }}
-            />
             </Grid>
             <Grid >
             <Grid item>
@@ -140,7 +193,7 @@ const handleChange = name => event => {
               label="Primary Contact"
               className={classes.textField}
               value={user.primaryContact}
-              onChange={handleChange('primaryContact')}
+              onChange={handleChange('user','primaryContact')}
               margin="normal"
          
             />
@@ -149,10 +202,21 @@ const handleChange = name => event => {
               label="Secondary Contact"
               className={classes.textField}
               value={user.secondaryContact}
-              onChange={handleChange('secondaryContact')}
+              onChange={handleChange('user','secondaryContact')}
               margin="normal"
             />
             </Grid>
+            <TextField
+              id="date"
+              label="dob"
+              type="date"
+              defaultValue={user.dob}
+              className={classes.textField}
+              onChange={handleChange('user','dob')}
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
             <Grid item>
             <FormControl component="fieldset" className={classes.formControl} style={{marginTop:"2%",marginLeft:"3.5%"}}>
               <FormLabel component="legend">Gender</FormLabel>
@@ -164,7 +228,7 @@ const handleChange = name => event => {
             </FormControl>
             </Grid>
             <Grid>
-              <Button variant="green" onClick={handleSubmit} style={{marginLeft:"100%"}}>
+              <Button variant="green" onClick={handleSubmit} style={{marginLeft:"90%"}}>
                Sumbit
               </Button>
               </Grid>
@@ -181,14 +245,31 @@ const handleChange = name => event => {
           id="panel2bh-header"
         >
           <Typography className={classes.heading}>Education Details</Typography>
+              
           <Typography className={classes.secondaryHeading}>
-            Tell us about your qualifications!
+              Tell us about your degrees, diplomas, qualificaitons!
           </Typography>
         </ExpansionPanelSummary>
         <ExpansionPanelDetails>
           <Typography>
-            Donec placerat, lectus sed mattis semper, neque lectus feugiat lectus, varius pulvinar
-            diam eros in elit. Pellentesque convallis laoreet laoreet.
+          {education.map((edu,i) => <EducationPostComponent 
+                        key={i}
+                        userId= {edu.userId}
+                        eduLevel = {edu.eduLevel}
+                        institute = {edu.institute}
+                        startDate = {edu.startDate}
+                        endDate = {edu.endDate}
+                        percentage = {edu.percentage}
+                        
+
+    
+                    />)}
+          {!newEducationComponent&&<Button variant = "green" type="button" style={{marginTop:"5%"}} onClick={handleAddEducation}>Add education</Button>}
+          {newEducationComponent&&<Button variant = "green" type="button" style={{marginTop:"5%"}} onClick={handleAddEducation}>Undo    </Button>}
+          <p>
+
+          </p>
+            {newEducationComponent&&<NewEducationPostComponent loadValues={loadValues}/>}
           </Typography>
         </ExpansionPanelDetails>
       </ExpansionPanel>
@@ -204,9 +285,24 @@ const handleChange = name => event => {
           </Typography>
         </ExpansionPanelSummary>
         <ExpansionPanelDetails>
-          <Typography>
-            Nunc vitae orci ultricies, auctor nunc in, volutpat nisl. Integer sit amet egestas eros,
-            vitae egestas augue. Duis vel est augue.
+        <Typography>
+          {workExp.map((work,i) => <WorkPostComponent 
+                        key={i}
+                        userId= {work.userId}
+                        company = {work.company}
+                        startDate = {work.startDate}
+                        endDate = {work.endDate}
+                        description = {work.description}
+                        designation = {work.designation}
+                        location = {work.location}
+                        loadValues={loadValues}
+                    />)}
+          {!newWorkComponent&&<Button variant = "green" type="button" style={{marginTop:"5%"}} onClick={handleAddWork}>Add Work Experience</Button>}
+          {newWorkComponent&&<Button variant = "green" type="button" style={{marginTop:"5%"}} onClick={handleAddWork}>Undo    </Button>}
+          <p>
+
+          </p>
+            {newWorkComponent&&<NewWorkPostComponent loadValues={loadValues}/>}
           </Typography>
         </ExpansionPanelDetails>
       </ExpansionPanel>

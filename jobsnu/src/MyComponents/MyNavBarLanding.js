@@ -9,7 +9,6 @@ import MenuIcon from '@material-ui/icons/Menu';
 import { Route, Link, BrowserRouter as Router,withRouter } from "react-router-dom";
 import MyLogIn from "./MyLogIn";
 import logo from '../img/logo2.png';
-import {useCookies,removeCookie,withCookies } from 'react-cookie';
 
 
 const useStyles = makeStyles(theme => ({
@@ -24,25 +23,17 @@ const useStyles = makeStyles(theme => ({
   },
 }));
 
-function MyNavBar(props) {
-  // const [cookies, setCookie] = useCookies(['userEmail'],['userId'],['isActive']);
-
+function MyNavBar() {
   const classes = useStyles();
-   const logOut = (event) => {
-  //   // remove('isActive',{ path: '/' })
-  //   // remove('userEmail',{ path: '/' })
-  //   // removeCookie('userId',{ path: '/' })
-  //   this.props.history.push("/");
-  }
+
   return (
     <div data-spy="scroll" data-target=".navbar" data-offset="50">
-       <nav className="navbar navbar-expand-sm fixed-top navnav"style={{backgroundColor:"white",}}>
-         <div style={{backgroundColor:"#AFD275",width:"100%"}}>
-          <img src={logo}alt="mylogo" style={{width:"6%",marginLeft:"2.5%"}}/>
-          <Button onClick={logOut()} style={{float:"right", backgroundColor:"#e7717d",height:"71px",color:"white"}}><strong>Log Out</strong></Button>
+       <nav className="navbar navbar-expand-sm fixed-top navnav"style={{backgroundColor:"transparent",}}>
+         <div style={{backgroundColor:"#AFD275",width:"57.8%"}}>
+          <img src={logo}alt="mylogo" style={{width:"15%",marginLeft:"2.5%"}}/>
         </div>
       </nav>
     </div>
   )
 }
-export default withCookies( withRouter(MyNavBar))
+export default withRouter(MyNavBar)

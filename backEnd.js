@@ -350,14 +350,15 @@ app.post('/register', function (req, res) {
 });
 
 app.post('/setEducation', function (req, res) {
-    let userId = req.body.user.userId;
-    let eduLevel = req.body.user.eduLevel;
-    let institute = req.body.user.institute;
-    let startDate = req.body.user.startDate;
-    let endDate = req.body.user.endDate;
-    let percentage = req.body.user.percentage;
+    let userId = req.body.education.userId;
+    let eduLevel = req.body.education.eduLevel;
+    let eduField = req.body.education.eduField;
+    let institute = req.body.education.institute;
+    let startDate = req.body.education.startDate;
+    let endDate = req.body.education.endDate;
+    let percentage = req.body.education.percentage;
 
-    let insertSql = 'INSERT INTO education(user_profile_id, education_level, institute, ' +
+    let insertSql = 'INSERT INTO education(user_profile_id, education_level, field, institute, ' +
         'start_date, end_date, percentage) VALUES (?,?,?,?,?,?)';
     let insertSqlParams = [userId, eduLevel, institute, startDate, endDate, percentage];
 
@@ -365,19 +366,19 @@ app.post('/setEducation', function (req, res) {
     {
         if(insertError) {
             console.log('[INSERT ERROR] - EDUCATION DETAILS', insertError.message);
-            // res.end("0");
             return;
         }
 
         console.log("Education details added successfully.\n", insertResult);
 
         var responseJson = {
-            "userId": req.body.user.userId,
-            "eduLevel" : req.body.user.eduLevel,
-            "institute" : req.body.user.institute,
-            "startDate" : req.body.user.startDate,
-            "endDate" : req.body.user.endDate,
-            "percentage" : req.body.user.percentage
+            "userId": req.body.education.userId,
+            "eduLevel" : req.body.education.eduLevel,
+            "eduField" : req.body.education.eduField,
+            "institute" : req.body.education.institute,
+            "startDate" : req.body.education.startDate,
+            "endDate" : req.body.education.endDate,
+            "percentage" : req.body.education.percentage
         };
         // should show profile saved message/saved profile details
         console.log("------------EDUCATION DETAILS RESPONSE----------\n"+responseJson);
@@ -460,13 +461,13 @@ app.post('/set_verification_status', function (req, res) {
 });
 
 app.post('/setWorkExperience', function (req, res) {
-    let userId = req.body.user.userId;
-    let startDate = req.body.user.startDate;
-    let endDate = req.body.user.endDate;
-    let company = req.body.user.company;
-    let description = req.body.user.description;
-    let designation = req.body.user.designation;
-    let location = req.body.user.location;
+    let userId = req.body.work.userId;
+    let startDate = req.body.work.startDate;
+    let endDate = req.body.work.endDate;
+    let company = req.body.work.company;
+    let description = req.body.work.description;
+    let designation = req.body.work.designation;
+    let location = req.body.work.location;
 
     let insertSql = 'INSERT INTO work_experience(user_profile_id, start_date, end_date, ' +
         'company, description, designation, location) VALUES (?,?,?,?,?,?,?)';
@@ -664,15 +665,63 @@ app.get('/logout', function(req,res){
     });
 });
 
-app.get('/showWorkExperience', function (request,response) {
+app.get('/showEducation', function (request,response) {
     let userId = request.query.userId;
 
-    // let userID = request.session.userId;
-    // console.log("--------------\n" +
-    //             "SESSION DETAILS\n" +
-    //             "-------------\n" +
-    //             "LOGGED-IN USER ID: "+ userId);
-    //
+    selectSql = "select * from education_details where user_profile_id = " + userId;
+    connection.query(selectSql, function (selectErr, selectResult) {
+        if (selectErr) {
+            var responseJson = {
+                "dbError" : 1,
+                "userId": null
+            }
+
+            console.log("[SELECT ERROR] - EDUCATION DETAILS\n", selectResult.message);
+            console.log("Error fetching user details. See below for detailed error information.\n" + selectErr.message)
+            console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
+            response.send(JSON.stringify(responseJson));
+        }
+        else if (selectResult === '') {
+            var responseJson = {
+                "dbError" : 0,
+                "userId": null
+            }
+
+            console.log("-----DATABASE ENTRY ERROR-----\nKindly contact ADMIN.\n")
+            response.send(JSON.stringify(responseJson));
+        }
+        else {
+            var educationArr = []
+            for(i = 0; i < selectResult.length; i++)
+            {
+                var jsonObj = {
+                    "eduLevel" : selectResult[i].education_level,
+                    "eduField" : selectResult[i].field,
+                    "institute" : selectResult[i].institute,
+                    "startDate" : selectResult[i].start_date,
+                    "endDate" : selectResult[i].end_date,
+                    "percentage" : selectResult[i].percentage
+                }
+                educationArr.push(jsonObj);
+            }
+
+            var responseJson = {
+                "dbError" : 0,
+                "userId" : userId,
+                "workExperiences" : educationArr
+            }
+
+            console.log("-----------EDUCATION DETAILS------------\n");
+            console.log(JSON.stringify(responseJson));
+            response.send(JSON.stringify(responseJson));
+        }
+    })
+    console.log("-----UNKNOWN ERROR-----\nKindly contact ADMIN to escalate issue to DEV team.\n");
+    response.redirect("error.html")
+});
+
+app.get('/showWorkExperience', function (request,response) {
+    let userId = request.query.userId;
 
     selectSql = "select * from work_experience where user_profile_id = " + userId;
     connection.query(selectSql, function (selectErr, selectResult, selectFields) {
@@ -696,9 +745,6 @@ app.get('/showWorkExperience', function (request,response) {
             response.send(JSON.stringify(responseJson));
         }
         else {
-            // console.log("IN JOB POSTS\n");
-            // console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.userId + "\n" + request.session.username);
-
             var workExperienceArr = []
             for(i = 0; i < selectResult.length; i++)
             {
@@ -727,67 +773,8 @@ app.get('/showWorkExperience', function (request,response) {
     console.log("-----UNKNOWN ERROR-----\nKindly contact ADMIN to escalate issue to DEV team.\n");
 });
 
-app.get('/showEducation', function (request,response) {
-    let userId = request.query.userId;
-    let eduLevel = request.query.eduLevel;
-    // let userID = request.session.userId;
-    // console.log("--------------\n" +
-    //             "SESSION DETAILS\n" +
-    //             "-------------\n" +
-    //             "LOGGED-IN USER ID: "+ userId);
-    //
-
-    selectSql = "select * from education_details where user_profile_id = " + userId +
-        " AND education_level = " + eduLevel + ";";
-    connection.query(selectSql, function (selectErr, selectResult) {
-        if (selectErr) {
-            var responseJson = {
-                "dbError" : 1,
-                "userId": null
-            }
-
-            console.log("[SELECT ERROR] - EDUCATION DETAILS\n", selectResult.message);
-            console.log("Error fetching user details. See below for detailed error information.\n" + selectErr.message)
-            console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
-            response.send(JSON.stringify(responseJson));
-        }
-        else if (selectResult === '') {
-            var responseJson = {
-                "dbError" : 0,
-                "userId": null
-            }
-
-            console.log("-----DATABASE ENTRY ERROR-----\nKindly contact ADMIN.\n")
-            response.send(JSON.stringify(responseJson));
-        }
-        else {
-            // console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.id + "\n" + request.session.username);
-            var responseJson = {
-                "userId": userId,
-                "eduLevel" : eduLevel,
-                "institute" : selectResult[0].institute,
-                "startDate" : selectResult[0].start_date,
-                "endDate" : selectResult[0].end_date,
-                "percentage" : selectResult[0].percentage
-            };
-
-            console.log("-----------EDUCATION DETAILS------------\nUSER ID:  ", selectResult[0].first_name);
-            console.log(JSON.stringify(responseJson));
-            response.send(JSON.stringify(responseJson));
-        }
-    })
-
-    console.log("-----UNKNOWN ERROR-----\nKindly contact ADMIN to escalate issue to DEV team.\n");
-});
-
 app.get('/userDetails', function (request,response) {
     let userId = request.query.userId;
-    // let userID = request.session.userId;
-    // console.log("--------------\n" +
-    //             "SESSION DETAILS\n" +
-    //             "-------------\n" +
-    //             "LOGGED-IN USER ID: "+ userId);
-    //
 
     selectSql = "select * from user_profile where id = " + userId;
     connection.query(selectSql, function (selectErr, selectResult) {

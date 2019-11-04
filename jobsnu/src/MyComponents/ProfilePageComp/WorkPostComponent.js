@@ -8,7 +8,7 @@ import CardMedia from '@material-ui/core/CardMedia';
 import Button from '@material-ui/core/Button';
 import Typography from '@material-ui/core/Typography';
 import LocationOnIcon from '@material-ui/icons/LocationOn';
-
+import LocationCityIcon from '@material-ui/icons/LocationCity';
 
 const useStyles = makeStyles({
     card: {
@@ -22,7 +22,7 @@ const useStyles = makeStyles({
 
   });
   
-export default function JobPostComponent(props) {
+export default function WorkPostComponent(props) {
     const classes = useStyles();
     return(
         <Card className={classes.card}>
@@ -36,17 +36,20 @@ export default function JobPostComponent(props) {
         />
         <CardContent>
           <Typography gutterBottom variant="h5" component="h2">
-             {props.jobName}
+             {props.designation}
           </Typography>
           <Typography variant="body2" color="textSecondary" component="p">
-             <LocationOnIcon/> {props.state} {props.country}
+             <LocationCityIcon/> {props.company},{props.location}
           </Typography>
         </CardContent>
       </CardActionArea>
       <CardActions>
-        <Button size="small" color="primary">
-          Apply
-        </Button>
+        <Typography gutterBottom >
+                {props.startDate.substring(0,7)} - {props.endDate.substring(0,7)}
+        </Typography>
+        <Typography gutterBottom>
+            {props.percentage}
+        </Typography>
         <Button size="small" color="primary">
           Learn More
         </Button>
