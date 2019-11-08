@@ -1,9 +1,10 @@
 var mysql  = require('mysql'); 
 var express = require('express');
 var nodemailer = require('nodemailer');
-var session = require('express-session');
+// var session = require('express-session');
 var bodyParser = require('body-parser');
 var path = require('path');
+var dateFormat = require('dateformat');
 
 const dotenv = require('dotenv');
 dotenv.config();
@@ -30,7 +31,7 @@ let transporter = nodemailer.createTransport({
 var app = express();
 var jobsnuEmail = 'jobsnu.se@gmail.com';
 var verificationEmailSubject =  'JOBSNU - E-mail Verification';
-var otpEmailSubject =  'JOBSNU - OTP for Login'
+var otpEmailSubject = 'JOBSNU - One-Time Password for Login'
 
 connection.connect();
 
@@ -76,9 +77,9 @@ app.post('/applyJob', function (request,response) {
     let userId = request.body.user.userId;
     let jobId = request.body.user.jobId;
 
-    selectSql = "insert into job_application(user_profile_id, job_post_id, application_date) VALUES (?,?,CURDATE())";
-    selectSqlParams = [userId, jobId];
-    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+    insertSql = "insert into job_application(user_profile_id, job_post_id, application_date) VALUES (?,?,CURDATE())";
+    insertSqlParams = [userId, jobId];
+    connection.query(insertSql, insertSqlParams, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var postResponse = {
                 "dbError": 1,
@@ -92,7 +93,8 @@ app.post('/applyJob', function (request,response) {
             var postResponse = {
                 "dbError": 0,
                 "jobApplied": 1,
-                "jobId": jobId
+                "jobId": jobId,
+                "userId": userId
             }
 
             console.log("-----------User " + userId +
@@ -122,7 +124,7 @@ app.post('/createJob', function (req, res) {
     let skills = req.body.user.skills;
     let skillLevel = req.body.user.skillLevel;
 
-    var insertSql = 'INSERT INTO job_post(INSERT INTO job_post(job_name, posted_by_id, company_id, domain, industry, function, description, city, state, country, job_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)';
+    var insertSql = 'INSERT INTO job_post(job_name, posted_by_id, company_id, domain, industry, function, description, city, state, country, job_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)';
     var insertSqlParams = [jobName, postedByUserId, companyId, jobDomain, companyIndustry, jobFunction, jobDescription, city, state, country, jobType];
     connection.query(insertSql,insertSqlParams, function (err, result)
     {
@@ -142,6 +144,7 @@ app.post('/createJob', function (req, res) {
             let jobId = result.insertId;
             insertSql = "INSERT INTO jp_skill_set(job_post_id, skill_level) VALUES (?,?)";
             insertSqlParams = [jobId, skillLevel];
+            // TO DO - enter data in jp_skill_set table
             var response = {
                 "jobAdded": 1,
                 "jobId": jobId
@@ -168,21 +171,23 @@ app.post('/login', function(request, response){
                 "invalid": 0,
                 "verified": 1,
                 "userId": null,
-                "username": null
+                "username": null,
+                "isRecruiter": null
             }
 
             console.log("Error fetching user details. See below for detailed error information.\n" + selectErr.message)
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             response.send(JSON.stringify(loginResponse));
         }
-        else if (selectResult === '') {
+        else if (selectResult == '') {
             // return 0;
             var loginResponse = {
                 "dbError" : 0,
                 "invalid": 0,
                 "verified": 1,
                 "userId": null,
-                "username": null
+                "username": null,
+                "isRecruiter": null
             }
 
             console.log("-----DATABASE ENTRY ERROR-----\nKindly contact ADMIN.\n")
@@ -190,18 +195,19 @@ app.post('/login', function(request, response){
         }
         else {
             // Set session variables
-            request.session.loggedIn = true;
-            request.session.userId = selectResult[0].id;
-            request.session.username = selectResult[0].first_name;
+            // request.session.loggedIn = true;
+            // request.session.userId = selectResult[0].id;
+            // request.session.username = selectResult[0].first_name;
 
-            console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.userId + "\n" + request.session.username);
+            // console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.userId + "\n" + request.session.username);
 
             var loginResponse = {
                 "dbError" : 0,
                 "invalid": 0,
                 "verified": 1,
                 "userId": selectResult[0].userId,
-                "username": selectResult[0].first_name
+                "username": selectResult[0].first_name,
+                "isRecruiter": selectResult[0].is_recruiter
             }
 
             console.log("-----------Login successful!------------\nLogging in user " + selectResult[0].first_name);
@@ -246,6 +252,7 @@ app.post('/mfaLogin', function (req,res) {
             res.send(JSON.stringify(response));
         }
         else {
+            // selectSQL2 = "SELECT id FROM user_profile where "
             if (result[0].mfa_enabled) {
 
                 console.log("IN VERIFIED & MFA_ENABLED");
@@ -359,8 +366,8 @@ app.post('/setEducation', function (req, res) {
     let percentage = req.body.education.percentage;
 
     let insertSql = 'INSERT INTO education(user_profile_id, education_level, field, institute, ' +
-        'start_date, end_date, percentage) VALUES (?,?,?,?,?,?)';
-    let insertSqlParams = [userId, eduLevel, institute, startDate, endDate, percentage];
+        'start_date, end_date, percentage) VALUES (?,?,?,?,?,?,?)';
+    let insertSqlParams = [userId, eduLevel, field, institute, dateFormat(startDate,"UTC:yyyy-mm-dd"), dateFormat(endDate, "UTC:yyyy-mm-dd"), percentage];
 
     connection.query(insertSql,insertSqlParams, function (insertError, insertResult)
     {
@@ -389,7 +396,7 @@ app.post('/setEducation', function (req, res) {
 app.post('/setMfa', function (request,response) {
     let mfaEnabled = req.body.user.mfa;
     // let userId = request.body.user.userId;
-    let userId = request.session.userId;
+    // let userId = request.session.userId;
 
     updateSql = "update login set mfa_enabled = " + mfaEnabled;
     connection.query(v, function (updateErr, updateResult, updateFields) {
@@ -471,7 +478,7 @@ app.post('/setWorkExperience', function (req, res) {
 
     let insertSql = 'INSERT INTO work_experience(user_profile_id, start_date, end_date, ' +
         'company, description, designation, location) VALUES (?,?,?,?,?,?,?)';
-    let insertSqlParams = [userId, startDate, endDate, company, description, designation, location];
+    let insertSqlParams = [userId, dateFormat(startDate, "UTC:yyyy-mm-dd"), dateFormat(endDate, "UTC:yyyy-mm-dd"), company, description, designation, location];
 
     connection.query(insertSql,insertSqlParams, function (insertError, insertResult)
     {
@@ -592,7 +599,7 @@ app.get('/jobPosts', function (request,response) {
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             response.send(JSON.stringify(responseJson));
         }
-        else if (selectResult === '') {
+        else if (selectResult == '') {
             var responseJson = {
                 "dbError" : 0,
                 "jobId": null
@@ -603,7 +610,7 @@ app.get('/jobPosts', function (request,response) {
         }
         else {
             console.log("IN JOB POSTS\n");
-            console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.userId + "\n" + request.session.username);
+            // console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.userId + "\n" + request.session.username);
 
             var jobPostsArr = []
             for(i = 0; i < selectResult.length; i++)
@@ -665,10 +672,155 @@ app.get('/logout', function(req,res){
     });
 });
 
+app.get('/recruiterJobPosts', function (request,response) {
+    let postedByUserId = request.body.user.userId;
+
+    // selectSql = "select * from job_post";
+    selectSql = "SELECT jp.*, jp_ss.skill_level, e.user_name, ss.skill_name " +
+        "FROM job_post as jp " +
+        "INNER JOIN jp_skill_set as jp_ss " +
+        "ON jp.id=jp_ss.job_post_id INNER JOIN employer as e " +
+        "ON jp.company_id = e.id INNER JOIN skill_set as ss " +
+        "ON jp_ss.skill_id = ss.id WHERE posted_by_id = '"+ postedByUserId+ "'";
+    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+        if (selectErr) {
+            var responseJson = {
+                "dbError" : 1,
+                "jobId": null
+            }
+
+            console.log("Error fetching job details. See below for detailed error information.\n" + selectErr.message)
+            console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
+            response.send(JSON.stringify(responseJson));
+        }
+        else if (selectResult == '') {
+            var responseJson = {
+                "dbError" : 0,
+                "jobId": null
+            }
+
+            console.log("-----DATABASE ENTRY ERROR-----\nKindly contact ADMIN.\n")
+            response.send(JSON.stringify(responseJson));
+        }
+        else {
+            console.log("IN JOB POSTS\n");
+            // console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.userId + "\n" + request.session.username);
+
+            var jobPostsArr = []
+            for(i = 0; i < selectResult.length; i++)
+            {
+                var jobId = selectResult[i].id;
+                var jobType = (selectResult[i].job_type='F')? "Full-Time":"Internship";
+                var postedByUserId = selectResult[i].posted_by_id;
+                var selectQuery2 = "select CONCAT(first_name, last_name) from user_profile where id = "+ postedByUserId;
+                let postedByName;
+                connection.query(selectQuery2, function (selectError2, selectResult2) {
+                    if(selectError2)
+                    {   console.log("----------DB ERROR---------\n"+selectError2.message);
+                        return;
+                    }
+                    postedByName = selectResult2[0].first_name + " " + selectResult2[0].last_name;
+                });
+                var jsonObj = {
+                    "jobId": jobId,
+                    "jobName" : selectResult[i].job_name,
+                    "postedById": postedByUserId,
+                    "postedByName" : postedByName,
+                    "companyName" : selectResult[i].user_name,
+                    "city": selectResult[i].city,
+                    "state" : selectResult[i].state,
+                    "country" : selectResult[i].country,
+                    "domain": selectResult[i].domain,
+                    "industry": selectResult[i].industry,
+                    "function": selectResult[i].function,
+                    "description": selectResult[i].description,
+                    "jobType": jobType,
+                    "isActive": selectResult[i].is_active,
+                    "skillName" : selectResult[i].skill_name,
+                    "skillLevel": selectResult[i].skill_level
+                }
+                jobPostsArr.push(jsonObj);
+            }
+
+            var responseJson = {
+                "dbError" : 0,
+                "jobPosts" : jobPostsArr
+            }
+
+            console.log("-----------Returning job posts------------\n"+responseJson);
+            response.send(JSON.stringify(responseJson));
+        }
+    });
+
+    console.log("-----UNKNOWN ERROR-----\nKindly contact ADMIN to escalate issue to DEV team.\n");
+});
+
+app.get('/recruiterJobPostApplicants', function (request,response) {
+    let postedByUserId = request.body.user.userId;
+    let jobId = request.body.user.jobId;
+
+    selectSql = "SELECT job_application.*, user_profile.email, " +
+        "CONCAT(user_profile.first_name, \" \", user_profile.last_name) AS user_name " +
+        "FROM job_application " +
+        "INNER JOIN user_profile " +
+        "ON user_profile.id = job_application.user_profile_id " +
+        "WHERE job_application.job_post_id = " + jobId;
+    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+        if (selectErr) {
+            var responseJson = {
+                "dbError" : 1,
+                "jobId": null
+            }
+
+            console.log("Error fetching job applicant details. See below for detailed error information.\n" + selectErr.message)
+            console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
+            response.send(JSON.stringify(responseJson));
+        }
+        else if (selectResult == '') {
+            var responseJson = {
+                "dbError" : 0,
+                "jobId": null
+            }
+
+            console.log("-----DATABASE ENTRY ERROR-----\nKindly contact ADMIN.\n")
+            response.send(JSON.stringify(responseJson));
+        }
+        else
+        {
+            var jobApplicantsArr = []
+            for(i = 0; i < selectResult.length; i++)
+            {
+                var applicantId = selectResult[i].user_profile_id;
+                var applicantName = selectResult[i].user_name;
+                var applicantEmail = selectResult[i].email;
+                var appliedOn = dateFormat(selectResult[i].application_date, "UTC:yyyy-mm-dd");
+
+                var jsonObj = {
+                    "applicantId" : applicantId,
+                    "applicantName" : applicantName,
+                    "applicantEmail": applicantEmail,
+                    "appliedOn" : appliedOn
+                }
+                jobApplicantsArr.push(jsonObj);
+            }
+            
+            var responseJson = {
+                "dbError" : 0,
+                "jobApplicants" : jobApplicantsArr
+            }
+
+            console.log("-----------Returning job applicants------------\n"+JSON.stringify(responseJson));
+            response.send(JSON.stringify(responseJson));
+        }
+    });
+
+    console.log("-----UNKNOWN ERROR-----\nKindly contact ADMIN to escalate issue to DEV team.\n");
+});
+
 app.get('/showEducation', function (request,response) {
     let userId = request.query.userId;
 
-    selectSql = "select * from education_details where user_profile_id = " + userId;
+    selectSql = "select * from education where user_profile_id = " + userId;
     connection.query(selectSql, function (selectErr, selectResult) {
         if (selectErr) {
             var responseJson = {
@@ -676,12 +828,12 @@ app.get('/showEducation', function (request,response) {
                 "userId": null
             }
 
-            console.log("[SELECT ERROR] - EDUCATION DETAILS\n", selectResult.message);
+            console.log("[SELECT ERROR] - EDUCATION DETAILS\n", selectErr.message);
             console.log("Error fetching user details. See below for detailed error information.\n" + selectErr.message)
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             response.send(JSON.stringify(responseJson));
         }
-        else if (selectResult === '') {
+        else if (selectResult == '') {
             var responseJson = {
                 "dbError" : 0,
                 "userId": null
@@ -698,8 +850,8 @@ app.get('/showEducation', function (request,response) {
                     "eduLevel" : selectResult[i].education_level,
                     "eduField" : selectResult[i].field,
                     "institute" : selectResult[i].institute,
-                    "startDate" : selectResult[i].start_date,
-                    "endDate" : selectResult[i].end_date,
+                    "startDate" : dateFormat(selectResult[i].start_date, "UTC:yyyy-mm-dd"),
+                    "endDate" : dateFormat(selectResult[i].end_date, "UTC:yyyy-mm-dd"),
                     "percentage" : selectResult[i].percentage
                 }
                 educationArr.push(jsonObj);
@@ -708,16 +860,15 @@ app.get('/showEducation', function (request,response) {
             var responseJson = {
                 "dbError" : 0,
                 "userId" : userId,
-                "workExperiences" : educationArr
+                "educationList" : educationArr
             }
 
-            console.log("-----------EDUCATION DETAILS------------\n");
-            console.log(JSON.stringify(responseJson));
+            console.log("-----------EDUCATION DETAILS------------\n",JSON.stringify(responseJson));
             response.send(JSON.stringify(responseJson));
         }
-    })
+    });
+
     console.log("-----UNKNOWN ERROR-----\nKindly contact ADMIN to escalate issue to DEV team.\n");
-    response.redirect("error.html")
 });
 
 app.get('/showWorkExperience', function (request,response) {
@@ -735,7 +886,7 @@ app.get('/showWorkExperience', function (request,response) {
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             response.send(JSON.stringify(responseJson));
         }
-        else if (selectResult === '') {
+        else if (selectResult == '') {
             var responseJson = {
                 "dbError" : 0,
                 "jobId": null
@@ -750,8 +901,8 @@ app.get('/showWorkExperience', function (request,response) {
             {
                 var jsonObj = {
                     "userId" : selectResult[i].user_profile_id,
-                    "startDate" : selectResult[i].start_date,
-                    "endDate" : selectResult[i].end_date,
+                    "startDate" : dateFormat(selectResult[i].start_date, "UTC:yyyy-mm-dd"),
+                    "endDate" : dateFormat(selectResult[i].end_date, "UTC:yyyy-mm-dd"),
                     "company" : selectResult[i].company,
                     "description" : selectResult[i].description,
                     "designation" : selectResult[i].designation,
@@ -788,7 +939,7 @@ app.get('/userDetails', function (request,response) {
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             response.send(JSON.stringify(loginResponse));
         }
-        else if (selectResult === '') {
+        else if (selectResult == '') {
             // return 0;
             var loginResponse = {
                 "dbError" : 0,
@@ -799,7 +950,7 @@ app.get('/userDetails', function (request,response) {
             response.send(JSON.stringify(loginResponse));
         }
         else {
-            console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.id + "\n" + request.session.username);
+            // console.log("-----------SESSION DETAILS-----------\n" + request.session.loggedIn + "\n" + request.session.id + "\n" + request.session.username);
 
             var loginResponse = {
                 "dbError" : 0,
