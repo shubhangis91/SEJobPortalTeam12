@@ -36,11 +36,11 @@ connection.connect();
 
 // app.use(express.static('./jobsnu/build'));
 app.use(express.static(path.join(__dirname, "jobsnu", "build")));
-app.use(session({
-    secret: process.env.SESS_SECRET,
-    resave: true,
-    saveUninitialized: true
-}));
+// app.use(session({
+//     secret: process.env.SESS_SECRET,
+//     resave: true,
+//     saveUninitialized: true
+// }));
 app.use(bodyParser.urlencoded({extended : true}));
 app.use(bodyParser.json());
 
