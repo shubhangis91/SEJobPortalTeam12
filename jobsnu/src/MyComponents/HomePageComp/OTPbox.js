@@ -26,11 +26,24 @@ class OTPbox extends React.Component {
             [event.target.name]: event.target.value 
         })
     }
-    handleSubmit(event){
+    handleSubmit(){
         const { cookies } = this.props;
         if(this.state.otpvalue==this.props.otp) {
-            cookies.set('isNotActive', false, { path: '/' })
+            console.log("logging user In")
+            //console.log(cookies.get('userEmail'))
+            //console.log(cookies.get('userId'))
+            console.log(cookies.get('isNotAtive'))
+            if(this.props.login==1) {
+                cookies.set('userId', 1, { path: '/' })
+            }
+            else{  
+                cookies.set('userId', 3, { path: '/' })
+            }
+            cookies.set('isNotActive', true, { path: '/' })
             cookies.set('userEmail', this.props.email, { path: '/' })
+            //console.log(cookies.get('userEmail'))
+            console.log(cookies.get('userId'))
+            //console.log(cookies.get('isNotActive'))
             this.setState({
                 otpvalid:true,
             })
@@ -58,12 +71,12 @@ class OTPbox extends React.Component {
         return(
             <Modal show={this.props.fade}>
                 <Modal.Header closeButton>
-                    Please enter the 6 digit OTP emailed to you below
+                    Please enter the 6 digit OTP emailed to you below 
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <Form.Group controlId="checkOTP">
-                            <Form.Control type="otp" placeholder="OTP" name="otpvalue" onChange={this.handleChange} required />
+                            <Form.Control type="password" placeholder="OTP" name="otpvalue" onChange={this.handleChange} required />
                         </Form.Group>
                     </Form>
                 </Modal.Body>
