@@ -12,9 +12,9 @@ console.log(`Your port is ${process.env.PORT}`); // 8626
 
 const port = process.env.PORT || 3500;
 
-var connection = mysql.createConnection({
-    host     : process.env.DB_HOST,
-    user     : process.env.DB_USER,
+const pool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
     password : process.env.DB_PASS,
     port: process.env.DB_PORT,
     database: process.env.DB,
@@ -36,7 +36,15 @@ var otpEmailSubject = 'JOBSNU - One-Time Password for Login';
 var applicationEmailJsSubject = 'JOBSNU - Job Application Submitted';
 var applicationEmailRecSubject = "JOBSNU - New Application Received"
 
-connection.connect();
+var connection;
+
+pool.getConnection(function(err, connectionVar) {
+    if(err)
+        throw err;
+    connection = connectionVar;
+});
+
+// connection.connect();
 
 // app.use(express.static('./jobsnu/build'));
 app.use(express.static(path.join(__dirname, "jobsnu", "build")));
@@ -65,10 +73,6 @@ function createEmailHtmlJs(messageJson)
         '<head>'+
         '    <meta charset="UTF-8">'+
         '    <title>Job Application Information</title>'+
-        '    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">'+
-        '    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>'+
-        '    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>'+
-        '    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>'+
         '</head>'+
         '<body>'+
         '   <h4>Job application successfully submitted.</h4>'+
@@ -95,14 +99,13 @@ function createEmailHtmlJs(messageJson)
         '               </div>'+
         '           </div>'+
         '           <div class="col-sm-4">'+
-        '               <img src="url(url_for_company_logo)">'+
+        '               <img src="url(url_for_company_logo)" alt="'+messageJson.company+'">'+
         '           </div>'+
         '    </div>'+
         '</body>'+
         '</html>';
 
     sendMessage(createMessage(htmlMessage, jobsnuEmail, messageJson.jobSeekerEmail, applicationEmailJsSubject));
-    return;
 }
 
 function createEmailHtmlRec(messageJson)
@@ -137,15 +140,11 @@ function createEmailHtmlRec(messageJson)
         '                </table>'+
         '               </div>'+
         '           </div>'+
-        '           <div class="col-sm-4">'+
-        '               <img src="url(url_for_company_logo)">'+
-        '           </div>'+
         '    </div>'+
         '</body>'+
         '</html>';
 
     sendMessage(createMessage(htmlMessage, jobsnuEmail, messageJson.recruiterEmail, applicationEmailRecSubject));
-    return;
 }
 
 function createMessage(htmlMessage, fromId, toId, subject)
@@ -165,7 +164,7 @@ function sendEmailNotifJS(jobSeekerId, jobAppliedId)
     selectSql1 = "SELECT email from user_profile WHERE id ="+ jobSeekerId;
     connection.query(selectSql1, function (selectErr1, selectResult1) {
         if (selectErr1) {
-            console.log("Error fetching user details. See below for detailed error information.\n" + selectErr1.message)
+            console.log("Error fetching user details. See below for detailed error information.\n" + selectErr1.message);
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             return;
         } else if (selectResult1 == '') {
@@ -194,7 +193,7 @@ function sendEmailNotifJS(jobSeekerId, jobAppliedId)
                     "company": selectResult2[0].user_name,
                     "jobFunction" : selectResult2[0].function,
                     "location": selectResult2[0].city+", "+selectResult2[0].state+", "+selectResult2[0].country
-                }
+                };
 
                 createEmailHtmlJs(htmlMessageJson);
 
@@ -203,7 +202,7 @@ function sendEmailNotifJS(jobSeekerId, jobAppliedId)
                     "userId": jobSeekerId,
                     "jobId": jobAppliedId,
                     "notificationSent": 1
-                }
+                };
 
                 console.log("-----------Email Notification Sent------------\n" + JSON.stringify(responseJson));
                 return;
@@ -218,7 +217,7 @@ function sendEmailNotifRec(applicantId, jobId)
         "from job_post WHERE id = "+jobId+");SELECT job_name, posted_by_id from job_post where id ="+jobId;
     connection.query(selectSql1, function (selectErr1, selectResult1) {
         if (selectErr1) {
-            console.log("Error fetching recruiter details. See below for detailed error information.\n" + selectErr.message)
+            console.log("Error fetching recruiter details. See below for detailed error information.\n" + selectErr.message);
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
             return;
         } else {
@@ -262,7 +261,7 @@ function sendEmailNotifRec(applicantId, jobId)
                     "applicantName": selectResults[0][0].first_name + " "+ selectResults[0][0].last_name,
                     "applicantSkills" : applicantSkills.substring(0, applicantSkills.length - 2).trim('"'),
                     "workEx" : workEx
-                }
+                };
                 // console.log("htmlMessageJson "+JSON.stringify(htmlMessageJson));
                 createEmailHtmlRec(htmlMessageJson);
 
