@@ -18,7 +18,8 @@ const pool = mysql.createPool({
     password : process.env.DB_PASS,
     port: process.env.DB_PORT,
     database: process.env.DB,
-    multipleStatements: true
+    multipleStatements: true,
+    connectionLimit: 50
 });
 
 let transporter = nodemailer.createTransport({
@@ -38,11 +39,11 @@ var applicationEmailRecSubject = "JOBSNU - New Application Received"
 
 var connection;
 
-pool.getConnection(function(err, connectionVar) {
-    if(err)
-        throw err;
-    connection = connectionVar;
-});
+// pool.getConnection(function(err, connectionVar) {
+//     if(err)
+//         throw err;
+//     connection = connectionVar;
+// });
 
 // connection.connect();
 
@@ -162,7 +163,7 @@ function sendEmailNotifJS(jobSeekerId, jobAppliedId)
 {
     console.log("Sending email notification to user " + jobSeekerId);
     selectSql1 = "SELECT email from user_profile WHERE id ="+ jobSeekerId;
-    connection.query(selectSql1, function (selectErr1, selectResult1) {
+    pool.query(selectSql1, function (selectErr1, selectResult1) {
         if (selectErr1) {
             console.log("Error fetching user details. See below for detailed error information.\n" + selectErr1.message);
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
@@ -180,7 +181,7 @@ function sendEmailNotifJS(jobSeekerId, jobAppliedId)
                 "INNER JOIN job_application ON job_application.job_post_id = job_post.id " +
                 "WHERE job_application.user_profile_id = "+jobSeekerId+ " AND job_application.job_post_id = "+jobAppliedId;
 
-            connection.query(selectSql2, function (selectErr2, selectResult2) {
+            pool.query(selectSql2, function (selectErr2, selectResult2) {
                 if (selectErr2) {
                     console.log("-----DATABASE ERROR-----\nError fetching job details. See below for detailed error information.\n");
                     console.log("Error in query " + selectErr2.message);
@@ -215,7 +216,7 @@ function sendEmailNotifRec(applicantId, jobId)
 {
     let selectSql1 = "SELECT email from user_profile where id = (SELECT posted_by_id " +
         "from job_post WHERE id = "+jobId+");SELECT job_name, posted_by_id from job_post where id ="+jobId;
-    connection.query(selectSql1, function (selectErr1, selectResult1) {
+    pool.query(selectSql1, function (selectErr1, selectResult1) {
         if (selectErr1) {
             console.log("Error fetching recruiter details. See below for detailed error information.\n" + selectErr.message);
             console.log("-----DATABASE CONNECTIVITY ERROR-----\nKindly contact ADMIN.\n");
@@ -235,7 +236,7 @@ function sendEmailNotifRec(applicantId, jobId)
                 "(CASE WHEN ABS((DAY(end_date)-DAY(start_date)) > 15) THEN 1 ELSE 0 END) as num_of_months " +
                 "from work_experience where user_profile_id = "+applicantId;
 
-            connection.query(selectSqls, function (selectErrs, selectResults) {
+            pool.query(selectSqls, function (selectErrs, selectResults) {
                 if (selectErrs) {
                     console.log("-----DATABASE ERROR-----\nError fetching job details. See below for detailed error information.\n");
                     console.log("Error in query " + selectErrs.message);
@@ -302,7 +303,7 @@ app.post('/applyJob', function (request,response) {
 
     insertSql = "insert into job_application(user_profile_id, job_post_id, application_date) VALUES (?,?,CURDATE())";
     insertSqlParams = [userId, jobId];
-    connection.query(insertSql, insertSqlParams, function (selectErr, selectResult, selectFields) {
+    pool.query(insertSql, insertSqlParams, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var postResponse = {
                 "dbError": 1,
@@ -362,7 +363,7 @@ app.post('/createJob', function (req, res) {
         ' description, city, state, country, job_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)';
     var insertSqlParams = [jobName, postedByUserId, companyId, jobDomain,
         companyIndustry, jobFunction, jobDescription, city, state, country, jobTypeVal];
-    connection.query(insertSql,insertSqlParams, function (err, result)
+    pool.query(insertSql,insertSqlParams, function (err, result)
     {
         if(err) {
             console.log('[INSERT ERROR] - ',err.message);
@@ -399,8 +400,8 @@ app.post('/login', function(request, response){
     console.log("REQUEST.BODY\n"+ request.body);
     console.log("REQUEST - Email: "+userEmail);
 
-    selectSql = "select * from user_profile where email = '" + userEmail +"'";
-    connection.query(selectSql, function (selectErr, selectResult) {
+    let selectSql = "select * from user_profile where email = '" + userEmail +"'";
+    pool.query(selectSql, function (selectErr, selectResult) {
         if (selectErr) {
             var loginResponse = {
                 "dbError" : 1,
@@ -463,7 +464,7 @@ app.post('/mfaLogin', function (req,res) {
     console.log("In LOGIN");
     var selectSQL = "select email, password, verified, mfa_enabled from login where email = '" + email + "' and password = '" + password + "'";
     // var  addSqlParams = [req.query.emailid,req.query.password];
-    connection.query(selectSQL, function (err, result) {
+    pool.query(selectSQL, function (err, result) {
         if (err) {
             console.log('[SELECT ERROR] - ', err.message);
             return;
@@ -567,7 +568,7 @@ app.post('/register', function (req, res) {
         'last_name, dob, gender, primary_contact, secondary_contact, ' +
         'registration_date,	is_recruiter) VALUES(?,?,?,?,?,?,?,CURDATE(),0)';
     let insertSqlParams = [email, firstName, lastName, dob, gender, primaryContact, secondaryContact];
-    connection.query(insertSql,insertSqlParams, function (err, result)
+    pool.query(insertSql,insertSqlParams, function (err, result)
     {
         if(err) {
             console.log('[INSERT ERROR] - ',err.message);
@@ -605,7 +606,7 @@ app.post('/setEducation', function (req, res) {
         'start_date, end_date, percentage) VALUES (?,?,?,?,?,?,?)';
     let insertSqlParams = [userId, eduLevel, field, institute, dateFormat(startDate,"UTC:yyyy-mm-dd"), dateFormat(endDate, "UTC:yyyy-mm-dd"), percentage];
 
-    connection.query(insertSql,insertSqlParams, function (insertError, insertResult)
+    pool.query(insertSql,insertSqlParams, function (insertError, insertResult)
     {
         if(insertError) {
             console.log('[INSERT ERROR] - EDUCATION DETAILS', insertError.message);
@@ -635,7 +636,7 @@ app.post('/setMfa', function (request,response) {
     // let userId = request.session.userId;
 
     updateSql = "update login set mfa_enabled = " + mfaEnabled;
-    connection.query(v, function (updateErr, updateResult, updateFields) {
+    pool.query(v, function (updateErr, updateResult, updateFields) {
         if (updateErr) {
             var setMfaResponse = {
                 "dbError" : 1,
@@ -672,7 +673,7 @@ app.post('/set_verification_status', function (req, res) {
         let  sqlQuery = 'UPDATE login SET verified = ? where email = ? and password = ?' ;
         let  sqlQueryParams = [isVerified, email, password];
 
-        connection.query(sqlQuery, sqlQueryParams,
+        pool.query(sqlQuery, sqlQueryParams,
             function (err, result)
             {
                 if(err){
@@ -716,7 +717,7 @@ app.post('/setWorkExperience', function (req, res) {
         'company, description, designation, location) VALUES (?,?,?,?,?,?,?)';
     let insertSqlParams = [userId, dateFormat(startDate, "UTC:yyyy-mm-dd"), dateFormat(endDate, "UTC:yyyy-mm-dd"), company, description, designation, location];
 
-    connection.query(insertSql,insertSqlParams, function (insertError, insertResult)
+    pool.query(insertSql,insertSqlParams, function (insertError, insertResult)
     {
         if(insertError) {
             console.log('[INSERT ERROR] - WORK EXPERIENCE DETAILS', insertError.message);
@@ -751,7 +752,7 @@ app.post('/verify', function (req, res) {
     let  addSql = 'INSERT INTO login (email, password, otp) VALUES(?, ?, ?)';
     let  addSqlParams = [email, password, otp];
 
-    connection.query(addSql,addSqlParams,function (err, result) {
+    pool.query(addSql,addSqlParams,function (err, result) {
         if(err){
             console.log('[INSERT ERROR] - VERIFY',err.message);
             res.end("0");
@@ -825,7 +826,7 @@ app.get('/jobPosts', function (request,response) {
         "ON jp.id=jp_ss.job_post_id INNER JOIN employer as e " +
         "ON jp.company_id = e.id INNER JOIN skill_set as ss " +
         "ON jp_ss.skill_id = ss.id"
-    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+    pool.query(selectSql, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var responseJson = {
                 "dbError" : 1,
@@ -857,7 +858,7 @@ app.get('/jobPosts', function (request,response) {
                 var postedByUserId = selectResult[i].posted_by_id;
                 var selectQuery2 = "select CONCAT(first_name, last_name) from user_profile where id = "+ postedByUserId;
                 let postedByName;
-                connection.query(selectQuery2, function (selectError2, selectResult2) {
+                pool.query(selectQuery2, function (selectError2, selectResult2) {
                     if(selectError2)
                     {   console.log("----------DB ERROR---------\n"+selectError2.message);
                         return;
@@ -928,7 +929,7 @@ app.get('/profile', function (request,response) {
         " as plus_num_of_months" +
         " from work_experience";
 
-    connection.query(selectSqls, function (selectErrs, selectResults) {
+    pool.query(selectSqls, function (selectErrs, selectResults) {
         if (selectErrs) {
             console.log("-----DATABASE ERROR-----\nError fetching job details. See below for detailed error information.\n");
             console.log("Error in query " + selectErrs.index);
@@ -954,7 +955,7 @@ app.get('/recruiterJobPosts', function (request,response) {
         "ON jp.id=jp_ss.job_post_id INNER JOIN employer as e " +
         "ON jp.company_id = e.id INNER JOIN skill_set as ss " +
         "ON jp_ss.skill_id = ss.id WHERE posted_by_id = '"+ postedByUserId+ "'";
-    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+    pool.query(selectSql, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var responseJson = {
                 "dbError" : 1,
@@ -986,7 +987,7 @@ app.get('/recruiterJobPosts', function (request,response) {
                 var postedByUserId = selectResult[i].posted_by_id;
                 var selectQuery2 = "select CONCAT(first_name, last_name) from user_profile where id = "+ postedByUserId;
                 let postedByName;
-                connection.query(selectQuery2, function (selectError2, selectResult2) {
+                pool.query(selectQuery2, function (selectError2, selectResult2) {
                     if(selectError2)
                     {   console.log("----------DB ERROR---------\n"+selectError2.message);
                         return;
@@ -1037,7 +1038,7 @@ app.get('/recruiterJobPostApplicants', function (request,response) {
         "INNER JOIN user_profile " +
         "ON user_profile.id = job_application.user_profile_id " +
         "WHERE job_application.job_post_id = " + jobId;
-    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+    pool.query(selectSql, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var responseJson = {
                 "dbError" : 1,
@@ -1103,7 +1104,7 @@ app.get('/searchRecruiter', function (request,response) {
         "(CASE WHEN ABS((DAY(end_date)-DAY(start_date)) > 15) THEN 1 ELSE 0 END) as num_of_months " +
         "from work_experience where user_profile_id = "+applicantId;
 
-    connection.query(selectSqls, function (selectErrs, selectResults) {
+    pool.query(selectSqls, function (selectErrs, selectResults) {
         if (selectErrs) {
             console.log("-----DATABASE ERROR-----\nError fetching job details. See below for detailed error information.\n");
             console.log("Error in query " + selectErrs.message);
@@ -1181,7 +1182,7 @@ app.get('/searchJobSeeker', function (request,response) {
     console.log("-------------location:"+location);
     console.log("-------------company:"+company);
 
-    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+    pool.query(selectSql, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var responseJson = {
                 "dbError" : 1,
@@ -1235,7 +1236,7 @@ app.get('/showEducation', function (request,response) {
     let userId = request.query.userId;
 
     selectSql = "select * from education where user_profile_id = " + userId;
-    connection.query(selectSql, function (selectErr, selectResult) {
+    pool.query(selectSql, function (selectErr, selectResult) {
         if (selectErr) {
             var responseJson = {
                 "dbError" : 1,
@@ -1289,7 +1290,7 @@ app.get('/showWorkExperience', function (request,response) {
     let userId = request.query.userId;
 
     selectSql = "select * from work_experience where user_profile_id = " + userId;
-    connection.query(selectSql, function (selectErr, selectResult, selectFields) {
+    pool.query(selectSql, function (selectErr, selectResult, selectFields) {
         if (selectErr) {
             var responseJson = {
                 "dbError" : 1,
@@ -1342,7 +1343,7 @@ app.get('/userDetails', function (request,response) {
     let userId = request.query.userId;
 
     selectSql = "select * from user_profile where id = " + userId;
-    connection.query(selectSql, function (selectErr, selectResult) {
+    pool.query(selectSql, function (selectErr, selectResult) {
         if (selectErr) {
             var loginResponse = {
                 "dbError" : 1,
