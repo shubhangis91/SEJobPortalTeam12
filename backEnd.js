@@ -332,7 +332,6 @@ app.post('/applyJob', function (request,response) {
 app.post('/createJob', function (req, res) {
     let jobName = req.body.user.jobName;
     let postedByUserId = req.body.user.userId;
-    let companyId = req.body.user.companyId;
     let jobDomain = req.body.user.jobDomain;
     let companyIndustry = req.body.user.companyIndustry;
     let jobFunction = req.body.user.jobFunction;
@@ -341,9 +340,9 @@ app.post('/createJob', function (req, res) {
     let state =  req.body.user.state;
     let country =  req.body.user.country;
     let jobType = req.body.user.jobType;
-    // let isActive = req.body.user.isActive;
     let skills = req.body.user.skills;
-    let skillLevel = req.body.user.skillLevel;
+    let skillsArr = skills.split(',');
+
     let jobTypeVal;
     if(jobType == "Intern" || jobType == "I")
         jobTypeVal = "I";
@@ -352,8 +351,19 @@ app.post('/createJob', function (req, res) {
     else if(jobType == "Part-Time" || jobType == "P")
         jobTypeVal = "P";
 
+    let companyId = 0;
+    let selectSql = "select current_company_id from job_seeker_profile where user_profile_id=?"
+    let selectSqlParams = [postedByUserId];
+    pool.query(selectSql,selectSqlParams, function (selectError, selectResult)
+    {
+        if(selectError)
+            throw selectError;
+        companyId = selectResult[0].current_company_id;
+        console.log("RECRUITER'S COMPANY ID: "+companyId);
+    });
+
     var insertSql = 'INSERT INTO job_post(job_name, posted_by_id, company_id, domain, industry, function,' +
-        ' description, city, state, country, job_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)';
+        ' description, city, state, country, job_type_id) VALUES (?,?,?,?,?,?,?,?,?,?,?);';
     var insertSqlParams = [jobName, postedByUserId, companyId, jobDomain,
         companyIndustry, jobFunction, jobDescription, city, state, country, jobTypeVal];
     pool.query(insertSql,insertSqlParams, function (err, result)
@@ -372,20 +382,31 @@ app.post('/createJob', function (req, res) {
         else
         {
             let jobId = result.insertId;
-            insertSql = "INSERT INTO jp_skill_set(job_post_id, skill_level) VALUES (?,?)";
-            insertSqlParams = [jobId, skillLevel];
-            // TO DO - enter data in jp_skill_set table
+
+            for (let i=0; i < (skillsArr.length); i++) {
+                pool.query("SELECT id from skill_set where lower(skill_name)= ?", [skillsArr[i].toLowerCase().trim()], function (selErr, selRes) {
+                    if(selErr)
+                        throw selErr;
+                    console.log("SKILL ID: ", selRes[0].id);
+                    let skillId = selRes[0].id;
+                    pool.query("insert into jp_skill_set(job_post_id, skill_id) values (?, ?)", [jobId, skillId], function (insErr, insRes) {
+                        if(insErr)
+                            throw insErr;
+                        console.log("-----Updated skill set for new job post in DB-----");
+                    });
+                });
+            }
+
             var response = {
                 "jobAdded": 1,
                 "jobId": jobId
             };
 
-            console.log("----------Job created successfully-----------\n");
+            console.log("----------Job created successfully-----------");
             console.log(response);
             res.send(JSON.stringify(response));
         }
     });
-
 });
 
 app.post('/login', function(request, response){
@@ -393,7 +414,7 @@ app.post('/login', function(request, response){
     console.log("REQUEST.BODY\n"+ request.body);
     console.log("REQUEST - Email: "+userEmail);
 
-    let selectSql = "select * from user_profile where email = '" + userEmail +"'";
+    let selectSql = "select * from user_profile where email = '" + userEmail +"';";
     pool.query(selectSql, function (selectErr, selectResult) {
         if (selectErr) {
             var loginResponse = {
@@ -805,7 +826,7 @@ app.get('/jobPosts', function (request,response) {
 
     // let userId = request.body.user.userId;
 
-    let selectSql = "SELECT jp.*, jp_ss.skill_level, e.user_name, ss.skill_name " +
+    let selectSql = "SELECT jp.*, e.user_name, ss.skill_name " +
         "FROM job_post as jp " +
         "INNER JOIN jp_skill_set as jp_ss " +
         "ON jp.id=jp_ss.job_post_id INNER JOIN employer as e " +
@@ -865,8 +886,7 @@ app.get('/jobPosts', function (request,response) {
                     "description": selectResult[i].description,
                     "jobType": jobType,
                     "isActive": selectResult[i].is_active,
-                    "skillName" : selectResult[i].skill_name,
-                    "skillLevel": selectResult[i].skill_level
+                    "skillName" : selectResult[i].skill_name
                 }
                 jobPostsArr.push(jsonObj);
             }
@@ -880,8 +900,6 @@ app.get('/jobPosts', function (request,response) {
             response.send(JSON.stringify(responseJson));
         }
     });
-
-
 });
 
 app.get('/logout', function(req,res){
@@ -1079,8 +1097,6 @@ app.get('/searchRecruiter', function (request,response) {
     let workExTo = (request.query.workExTo)?(request.query.workExTo)*12:(request.query.workExTo);
 
     let workExFlag = 0;
-
-    console.log("workExFlag: "+workExFlag);
 
     let selectSqlKeyword = "SELECT user_profile.id as user_id, user_profile.first_name, user_profile.last_name, skill_set.skill_name, job_seeker_profile.current_city,  job_seeker_profile.current_state, job_seeker_profile.current_country, job_seeker_profile.current_designation, PERIOD_DIFF(EXTRACT(YEAR_MONTH FROM CURRENT_DATE), EXTRACT(YEAR_MONTH FROM first_start_date)) + (CASE WHEN ABS((DAY(CURRENT_DATE)-DAY(first_start_date)) > 15) THEN 1 ELSE 0 END) as exp_months from user_profile INNER JOIN job_seeker_profile ON job_seeker_profile.user_profile_id = user_profile.id INNER JOIN js_skill_set ON js_skill_set.user_profile_id = user_profile.id INNER JOIN skill_set ON skill_set.id = js_skill_set.skill_id INNER JOIN work_experience_start ON work_experience_start.user_profile_id = user_profile.id WHERE (skill_set.skill_name LIKE \'%"+keyword+"%\' OR job_seeker_profile.current_designation like \'%"+keyword+"%\' or job_seeker_profile.current_job_description like \'%"+keyword+"%\')";
     let selectSqlLocation = "SELECT user_profile.id as user_id, user_profile.first_name, user_profile.last_name, skill_set.skill_name, job_seeker_profile.current_city, job_seeker_profile.current_state, job_seeker_profile.current_country, job_seeker_profile.current_designation, PERIOD_DIFF(EXTRACT(YEAR_MONTH FROM CURRENT_DATE), EXTRACT(YEAR_MONTH FROM first_start_date)) + (CASE WHEN ABS((DAY(CURRENT_DATE)-DAY(first_start_date)) > 15) THEN 1 ELSE 0 END) as exp_months from user_profile INNER JOIN job_seeker_profile ON job_seeker_profile.user_profile_id = user_profile.id INNER JOIN js_skill_set ON js_skill_set.user_profile_id = user_profile.id INNER JOIN skill_set ON skill_set.id = js_skill_set.skill_id INNER JOIN work_experience_start ON work_experience_start.user_profile_id = user_profile.id WHERE (skill_set.skill_name LIKE \'%"+keyword+"%\' OR job_seeker_profile.current_designation like \'%"+keyword+"%\' or job_seeker_profile.current_job_description like \'%"+keyword+"%\') AND (job_seeker_profile.current_city like \'%"+location+"%\' OR job_seeker_profile.current_state like \'%"+location+"%\' OR job_seeker_profile.current_country like \'%"+location+"%\')";
