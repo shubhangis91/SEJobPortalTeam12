@@ -330,82 +330,62 @@ app.post('/applyJob', function (request,response) {
 });
 
 app.post('/createJob', function (req, res) {
-    let jobName = req.body.user.jobName;
-    let postedByUserId = req.body.user.userId;
-    let jobDomain = req.body.user.jobDomain;
-    let companyIndustry = req.body.user.companyIndustry;
-    let jobFunction = req.body.user.jobFunction;
-    let jobDescription = req.body.user.jobDescription;
-    let city = req.body.user.city;
-    let state =  req.body.user.state;
-    let country =  req.body.user.country;
-    let jobType = req.body.user.jobType;
-    let skills = req.body.user.skills;
+    let jobName = req.body.job.jobName;
+    let postedByUserId = req.body.job.userId;
+    let jobDomain = req.body.job.jobDomain;
+    let companyIndustry = req.body.job.companyIndustry;
+    let jobFunction = req.body.job.jobFunction;
+    let jobDescription = req.body.job.jobDescription;
+    let city = req.body.job.city;
+    let state =  req.body.job.state;
+    let country =  req.body.job.country;
+    let jobType = req.body.job.jobType;
+    let skills = req.body.job.skills;
     let skillsArr = skills.split(',');
 
     let jobTypeVal;
-    if(jobType == "Intern" || jobType == "I")
+    if(jobType == "Internship" || jobType == "I")
         jobTypeVal = "I";
     else if(jobType == "Full-Time" || jobType == "F")
         jobTypeVal = "F";
     else if(jobType == "Part-Time" || jobType == "P")
         jobTypeVal = "P";
 
-    let companyId = 0;
-    let selectSql = "select current_company_id from job_seeker_profile where user_profile_id=?"
-    let selectSqlParams = [postedByUserId];
-    pool.query(selectSql,selectSqlParams, function (selectError, selectResult)
-    {
-        if(selectError)
-            throw selectError;
-        companyId = selectResult[0].current_company_id;
-        console.log("RECRUITER'S COMPANY ID: "+companyId);
-    });
-
-    var insertSql = 'INSERT INTO job_post(job_name, posted_by_id, company_id, domain, industry, function,' +
-        ' description, city, state, country, job_type_id) VALUES (?,?,?,?,?,?,?,?,?,?,?);';
-    var insertSqlParams = [jobName, postedByUserId, companyId, jobDomain,
+    let sql = "INSERT INTO job_post(job_name, posted_by_id, company_id, domain, industry, function," +
+        " description, city, state, country, job_type_id) VALUES (?,?,(select current_company_id " +
+        "from job_seeker_profile where user_profile_id="+parseInt(postedByUserId)+"),?,?,?,?,?,?,?,?);"
+    let sqlParams = [jobName, postedByUserId, jobDomain,
         companyIndustry, jobFunction, jobDescription, city, state, country, jobTypeVal];
-    pool.query(insertSql,insertSqlParams, function (err, result)
+    pool.query(sql,sqlParams, function (selectError, selectResult)
     {
-        if(err) {
-            console.log('[INSERT ERROR] - ',err.message);
-            var response = {
-                "jobAdded": 0,
-                "jobId": null
-            };
-
-            console.log("----------Error while creating job.\n-----------\n");
-            console.log(response);
-            res.send(JSON.stringify(response));
+        if(selectError) {
+            throw selectError;
         }
-        else
-        {
-            let jobId = result.insertId;
 
-            for (let i=0; i < (skillsArr.length); i++) {
-                pool.query("SELECT id from skill_set where lower(skill_name)= ?", [skillsArr[i].toLowerCase().trim()], function (selErr, selRes) {
-                    if(selErr)
-                        throw selErr;
-                    console.log("SKILL ID: ", selRes[0].id);
-                    let skillId = selRes[0].id;
-                    pool.query("insert into jp_skill_set(job_post_id, skill_id) values (?, ?)", [jobId, skillId], function (insErr, insRes) {
-                        if(insErr)
-                            throw insErr;
-                        console.log("-----Updated skill set for new job post in DB-----");
-                    });
+        jobId = selectResult.insertId;
+
+        for (let i=0; i < (skillsArr.length); i++) {
+            pool.query("SELECT id from skill_set where lower(skill_name)= ?", [skillsArr[i].toLowerCase().trim()], function (selErr, selRes) {
+                if(selErr)
+                    throw selErr;
+
+                let skillId = selRes[0].id;
+                pool.query("insert into jp_skill_set(job_post_id, skill_id) values (?, ?)", [jobId, skillId], function (insErr, insRes) {
+                    if(insErr)
+                        throw insErr;
+                    console.log("-----Updated skill set for new job post in DB-----");
                 });
-            }
-
-            var response = {
-                "jobAdded": 1,
-                "jobId": jobId
-            };
-
-            console.log("----------Job created successfully-----------");
-            console.log(response);
-            res.send(JSON.stringify(response));
+            });
         }
+
+        var response = {
+            "jobAdded": 1,
+            "jobId": jobId
+        };
+
+        console.log("----------Job created successfully-----------");
+        console.log(response);
+        res.send(JSON.stringify(response));
     });
 });
 
@@ -823,9 +803,6 @@ app.post('/verify', function (req, res) {
 // GET ROUTER FUNCTIONS
 
 app.get('/jobPosts', function (request,response) {
-
-    // let userId = request.body.user.userId;
-
     let selectSql = "SELECT jp.*, e.user_name, ss.skill_name " +
         "FROM job_post as jp " +
         "INNER JOIN jp_skill_set as jp_ss " +
@@ -1183,7 +1160,7 @@ app.get('/searchJobSeeker', function (request,response) {
     let location = request.query.location;
     let company = request.query.company;
 
-    let selectSqlKeyword = "SELECT job_post.id, job_post.job_name, job_post.domain, employer.user_name as company_name, employer.id as company_id, skill_set.skill_name " +
+    let selectSqlKeyword = "SELECT job_post.*, employer.user_name as company_name, employer.id as company_id, skill_set.skill_name " +
         "FROM job_post INNER JOIN employer ON job_post.company_id = employer.id " +
         "INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id " +
         "INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id " +
@@ -1191,9 +1168,9 @@ app.get('/searchJobSeeker', function (request,response) {
         "OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' " +
         "OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' " +
         "OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\'";
-    let selectSqlLocation = "SELECT job_post.id, job_post.job_name, job_post.domain, employer.user_name, skill_set.skill_name FROM job_post INNER JOIN employer ON job_post.company_id = employer.id INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id WHERE (job_name LIKE \'%"+keyword+"%\' OR job_post.domain LIKE \'%"+keyword+"%\' OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\') AND (job_post.city LIKE \'%"+location+"%\' OR job_post.state LIKE \'%"+location+"%\' OR job_post.country LIKE \'%"+location+"%\');";
-    let selectSqlCompany = "SELECT job_post.id, job_post.job_name, job_post.domain, employer.user_name, skill_set.skill_name FROM job_post INNER JOIN employer ON job_post.company_id = employer.id INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id WHERE (job_name LIKE \'%"+keyword+"%\' OR job_post.domain LIKE \'%"+keyword+"%\' OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\') AND (employer.user_name like \'%"+company+"%\');";
-    let selectSqlAll = "SELECT job_post.id, job_post.job_name, job_post.domain, employer.user_name, skill_set.skill_name FROM job_post INNER JOIN employer ON job_post.company_id = employer.id INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id WHERE (job_name LIKE \'%"+keyword+"%\' OR job_post.domain LIKE \'%"+keyword+"%\' OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\') AND (job_post.city LIKE \'%"+location+"%\' OR job_post.state LIKE \'%"+location+"%\' OR job_post.country LIKE \'%"+location+"%\') AND (employer.user_name like \'%"+company+"%\');";
+    let selectSqlLocation = "SELECT job_post.*, employer.user_name, skill_set.skill_name FROM job_post INNER JOIN employer ON job_post.company_id = employer.id INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id WHERE (job_name LIKE \'%"+keyword+"%\' OR job_post.domain LIKE \'%"+keyword+"%\' OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\') AND (job_post.city LIKE \'%"+location+"%\' OR job_post.state LIKE \'%"+location+"%\' OR job_post.country LIKE \'%"+location+"%\');";
+    let selectSqlCompany = "SELECT job_post.*, employer.user_name, skill_set.skill_name FROM job_post INNER JOIN employer ON job_post.company_id = employer.id INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id WHERE (job_name LIKE \'%"+keyword+"%\' OR job_post.domain LIKE \'%"+keyword+"%\' OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\') AND (employer.user_name like \'%"+company+"%\');";
+    let selectSqlAll = "SELECT job_post.*, employer.user_name, skill_set.skill_name FROM job_post INNER JOIN employer ON job_post.company_id = employer.id INNER JOIN jp_skill_set ON job_post.id = jp_skill_set.job_post_id INNER JOIN skill_set ON skill_set.id = jp_skill_set.skill_id WHERE (job_name LIKE \'%"+keyword+"%\' OR job_post.domain LIKE \'%"+keyword+"%\' OR function LIKE \'%"+keyword+"%\' OR description LIKE \'%"+keyword+"%\' OR city LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR state LIKE \'%"+keyword+"%\' OR employer.user_name LIKE \'%"+keyword+"%\' OR skill_set.skill_name LIKE \'%"+keyword+"%\') AND (job_post.city LIKE \'%"+location+"%\' OR job_post.state LIKE \'%"+location+"%\' OR job_post.country LIKE \'%"+location+"%\') AND (employer.user_name like \'%"+company+"%\');";
 
     let selectSql= "";
     // check search parameters
@@ -1234,13 +1211,26 @@ app.get('/searchJobSeeker', function (request,response) {
                 var companyId = selectResult[i].company_id;
                 var companyName = selectResult[i].company_name;
                 var domain = selectResult[i].domain;
+                var postedByUserId = selectResult[i].posted_by_id
+                var jobType = (selectResult[i].job_type='F')? "Full-Time":"Internship";
+                var postedByUserId = selectResult[i].posted_by_id;
 
                 var jsonObj = {
                     "jobId" : jobId,
                     "jobName" : jobName,
+                    "postedById": postedByUserId,
                     "companyId" : companyId,
                     "companyName" : companyName,
-                    "domain" : domain
+                    "domain" : domain,
+                    "industry": selectResult[i].industry,
+                    "city": selectResult[i].city,
+                    "state" : selectResult[i].state,
+                    "country" : selectResult[i].country,
+                    "function": selectResult[i].function,
+                    "description": selectResult[i].description,
+                    "jobType": jobType,
+                    "isActive": selectResult[i].is_active,
+                    "skillName" : selectResult[i].skill_name
                 }
                 jobsArr.push(jsonObj);
             }
